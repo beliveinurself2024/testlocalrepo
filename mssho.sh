@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Stephane Korning # CGI Inc. # 2004
-# Last Update: Stephane.Korning 2017-09-08, Inode Consultants, stefuss@yahoo.com
 # mssh: multi-host wrapper for ssh.
 
 Usage () {
