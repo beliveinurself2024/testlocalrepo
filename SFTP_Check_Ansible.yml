@@ -1,0 +1,82 @@
+---
+- name: Run FTP & SFTP Audit and Email Report
+  hosts: ftp_clients
+  gather_facts: no
+  become: yes
+  vars:
+    audit_results: []
+    smtp_server: "smtp.yourdomain.com"
+    email_sender: "ansible@yourdomain.com"
+    email_recipient: "you@example.com"
+    report_file: "/tmp/ftp_audit_report.txt"
+
+  tasks:
+
+    - name: Check if SFTP subsystem is set to mysecureshell
+      shell: "grep -q '^Subsystem\\s\\+sftp\\s\\+/usr/bin/mysecureshell' /etc/ssh/sshd_config && echo OK || echo FAIL"
+      register: sftp_subsystem
+
+    - name: Check if /etc/ssh/sftp_config exists
+      stat:
+        path: /etc/ssh/sftp_config
+      register: sftp_config
+
+    - name: Check if /sbin/nologin symlink is correct
+      shell: "[[ -L /sbin/nologin && $(readlink -f /sbin/nologin) == '/usr/bin/mysecureshell' ]] && echo OK || echo FAIL"
+      register: symlink_check
+
+    - name: Check if /ftphome is mounted
+      shell: "mountpoint -q /ftphome && echo YES || echo NO"
+      register: ftphome_mounted
+
+    - name: Check if /ftphome is in fstab
+      shell: "grep -q '/ftphome' /etc/fstab && echo YES || echo NO"
+      register: ftphome_fstab
+
+    - name: Check if ftpadmin has login shell
+      shell: "getent passwd ftpadmin | grep -qE '/bash|/sh' && echo OK || echo FAIL"
+      register: ftpadmin_login
+
+    - name: Check if ftpaccess.sh script exists
+      stat:
+        path: /ftpaccess.sh
+      register: ftpaccess_script
+
+    - name: Aggregate results per host
+      set_fact:
+        audit_results: "{{ audit_results + [ {
+            'host': inventory_hostname,
+            'sftp_subsystem': sftp_subsystem.stdout,
+            'sftp_config': (sftp_config.stat.exists | ternary('OK', 'MISSING')),
+            'symlink': symlink_check.stdout,
+            'ftphome_mounted': ftphome_mounted.stdout,
+            'ftphome_fstab': ftphome_fstab.stdout,
+            'ftpadmin_login': ftpadmin_login.stdout,
+            'ftpaccess_script': (ftpaccess_script.stat.exists | ternary('YES', 'NO'))
+        } ] }}"
+      delegate_to: localhost
+      run_once: false
+
+    - name: Build table report (on control node)
+      delegate_to: localhost
+      run_once: true
+      copy:
+        dest: "{{ report_file }}"
+        content: |
+          Server  | SFTP_Subsystem | SFTP_Config | Symlink_OK | FTPHOME_Mounted | FTPHOME_in_FSTAB | ftpadmin_Login_OK | ftpaccess.sh_Exists
+          --------|----------------|-------------|------------|------------------|-------------------|--------------------|----------------------
+          {% for r in audit_results %}
+          {{ r.host }} | {{ r.sftp_subsystem }} | {{ r.sftp_config }} | {{ r.symlink }} | {{ r.ftphome_mounted }} | {{ r.ftphome_fstab }} | {{ r.ftpadmin_login }} | {{ r.ftpaccess_script }}
+          {% endfor %}
+
+    - name: Email the report
+      delegate_to: localhost
+      run_once: true
+      community.general.mail:
+        host: "{{ smtp_server }}"
+        port: 25
+        to: "{{ email_recipient }}"
+        subject: "FTP Audit Report - {{ ansible_date_time.date }} {{ ansible_date_time.time }}"
+        from: "{{ email_sender }}"
+        body: "{{ lookup('file', report_file) }}"
+        subtype: plain
