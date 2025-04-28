@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# Define your servers
+declare -A SERVERS
+SERVERS=(
+  ["SFTP_DEV_Primary"]="CA"
+  ["SFTP_DEV_Secondary"]="CB"
+  ["SFTP_PRD_External_Primary"]="AA"
+  ["SFTP_PRD_External_Secondary1"]="AB"
+  ["SFTP_PRD_External_Secondary2"]="AC"
+  ["SFTP_PRD_External_Secondary3"]="AD"
+  ["SFTP_PRD_Internal_Primary"]="BA"
+  ["SFTP_PRD_Internal_Secondary1"]="BB"
+  ["SFTP_PRD_Internal_Secondary2"]="BC"
+  ["SFTP_PRD_Internal_Secondary3"]="BD"
+)
+
+EMAIL="d@g.com"
+TMP_REPORT="/tmp/ssh_audit_raw.txt"
+HTML_REPORT="/tmp/ssh_audit_report.html"
+
+# Initialize raw report
+echo -e "Server\tCheck\tStatus\tDetails" > "$TMP_REPORT"
+
+# Function to perform checks on server
+perform_checks() {
+    SERVER=$1
+
+    echo "Checking $SERVER..."
+
+    ssh "$SERVER" "grep -q '^Subsystem sftp /usr/bin/shellse -c sftp-server' /etc/ssh/sshd_config" && \
+        echo -e "$SERVER\tsshd_config\tOK\tEntry Found" >> "$TMP_REPORT" || \
+        echo -e "$SERVER\tsshd_config\tNOK\tEntry Missing" >> "$TMP_REPORT"
+
+    ssh "$SERVER" "[ -f /etc/ssh/sftp_config ]" && \
+        echo -e "$SERVER\tsftp_config\tOK\tScript Present" >> "$TMP_REPORT" || \
+        echo -e "$SERVER\tsftp_config\tNOK\tScript Missing" >> "$TMP_REPORT"
+
+    ssh "$SERVER" "[ -L /sbin/nologin ] && [ \"\$(readlink /sbin/nologin)\" == \"/usr/bin/shellse\" ]" && \
+        echo -e "$SERVER\tsymlink_nologin\tOK\tCorrect Symlink" >> "$TMP_REPORT" || \
+        echo -e "$SERVER\tsymlink_nologin\tNOK\tIncorrect or Missing" >> "$TMP_REPORT"
+
+    ssh "$SERVER" "mount | grep -q '/shellse' && grep -q 'sft.com:/fddfd/FTPHOME /shellse' /etc/fstab" && \
+        echo -e "$SERVER\tftphome_mount\tOK\tMounted and fstab Entry Found" >> "$TMP_REPORT" || \
+        echo -e "$SERVER\tftphome_mount\tNOK\tMount or fstab Entry Missing" >> "$TMP_REPORT"
+
+    ssh "$SERVER" "[ -f /ftphome/admin/scripts/ftpaccess.sh ]" && \
+        echo -e "$SERVER\tftpaccess_script\tOK\tScript Present" >> "$TMP_REPORT" || \
+        echo -e "$SERVER\tftpaccess_script\tNOK\tScript Missing" >> "$TMP_REPORT"
+
+    ssh "$SERVER" "id ftpadmin" &>/dev/null && \
+        echo -e "$SERVER\tftpadmin_user\tOK\tUser Exists" >> "$TMP_REPORT" || \
+        echo -e "$SERVER\tftpadmin_user\tNOK\tUser Missing" >> "$TMP_REPORT"
+}
+
+# Function to check SSH access between Primary and Secondary servers
+check_ssh_between_servers() {
+    PRIMARY=$1
+    shift
+    SECONDARIES=("$@")
+
+    for sec in "${SECONDARIES[@]}"; do
+        echo "Testing ssh from $PRIMARY to $sec as ftpadmin..."
+        ssh "$PRIMARY" "ssh -o BatchMode=yes -o ConnectTimeout=5 ftpadmin@$sec 'exit 0'" && \
+            echo -e "$PRIMARY\tSSH_to_$sec\tOK\tConnected Successfully" >> "$TMP_REPORT" || \
+            echo -e "$PRIMARY\tSSH_to_$sec\tNOK\tConnection Failed" >> "$TMP_REPORT"
+    done
+}
+
+# Perform checks
+for server_name in "${!SERVERS[@]}"; do
+    perform_checks "${SERVERS[$server_name]}"
+done
+
+check_ssh_between_servers "CA" "CB"
+check_ssh_between_servers "AA" "AB" "AC" "AD"
+check_ssh_between_servers "BA" "BB" "BC" "BD"
+
+# Generate HTML Report
+{
+echo "<html><body>"
+echo "<h2>SFTP Server Audit Report</h2>"
+echo "<table border='1' cellpadding='5' cellspacing='0' style='border-collapse: collapse;'>"
+echo "<tr style='background-color: #f2f2f2;'><th>Server</th><th>Check</th><th>Status</th><th>Details</th></tr>"
+
+tail -n +2 "$TMP_REPORT" | while IFS=$'\t' read -r server check status details; do
+    if [[ "$status" == "OK" ]]; then
+        color="style='background-color: #d4edda;'" # light green
+    else
+        color="style='background-color: #f8d7da;'" # light red
+    fi
+    echo "<tr>"
+    echo "<td>$server</td><td>$check</td><td $color>$status</td><td>$details</td>"
+    echo "</tr>"
+done
+
+echo "</table>"
+echo "</body></html>"
+} > "$HTML_REPORT"
+
+# Send HTML report by email
+(
+echo "Subject: SFTP Server Audit Report"
+echo "MIME-Version: 1.0"
+echo "Content-Type: text/html"
+cat "$HTML_REPORT"
+) | /usr/sbin/sendmail "$EMAIL"
+
+# Clean up (optional)
+# rm "$TMP_REPORT"
