@@ -1,0 +1,94 @@
+#!/bin/bash
+
+# Email configuration
+EMAIL="d@g.com"
+FROM="sftp-audit@yourdomain.com"
+HTML_REPORT="/tmp/sftp_audit_report.html"
+TMP_DATA="/tmp/sftp_audit_data.tsv"
+
+# Servers
+PRIMARY_EXTERNAL="AA"
+SECONDARIES_EXTERNAL=("AB" "AC" "AD")
+PRIMARY_INTERNAL="BA"
+SECONDARIES_INTERNAL=("BB" "BC" "BD")
+ALL_SERVERS=("$PRIMARY_EXTERNAL" "${SECONDARIES_EXTERNAL[@]}" "$PRIMARY_INTERNAL" "${SECONDARIES_INTERNAL[@]}")
+
+# Prepare TSV header
+echo -e "Server_name\tsshd_config_file\tsftp_config_file\tsymlink_nologin\tftphome_mount\tftpaccess_script\tftpadmin_userid\tssh_to_secondary" > "$TMP_DATA"
+
+# Function to check command output on remote server
+check_remote() {
+    ssh -o BatchMode=yes -o ConnectTimeout=5 "$1" "$2" >/dev/null 2>&1 && echo "OK" || echo "NOK"
+}
+
+# Check each server
+for server in "${ALL_SERVERS[@]}"; do
+    echo "Checking $server..."
+
+    sshd_config=$(check_remote "$server" "grep -q '^Subsystem sftp /usr/bin/myshell -c sftp-server' /etc/ssh/sshd_config")
+    sftp_config=$(check_remote "$server" "[ -f /etc/ssh/sftp_config ]")
+    symlink_nologin=$(check_remote "$server" "[ -L /sbin/nologin ] && [[ \$(readlink -f /sbin/nologin) == '/usr/bin/myshell' ]]")
+    ftphome_mount=$(check_remote "$server" "mount | grep -q '/ftphome' && grep -q 'ftphome' /etc/fstab")
+    ftpaccess_script=$(check_remote "$server" "[ -f /ftphome/admin/scripts/ftpaccess/ftpaccess.sh ]")
+    ftpadmin_userid=$(check_remote "$server" "id ftpadmin")
+
+    echo -e "$server\t$sshd_config\t$sftp_config\t$symlink_nologin\t$ftphome_mount\t$ftpaccess_script\t$ftpadmin_userid\tN/A" >> "$TMP_DATA"
+done
+
+# Function to check SSH from primary to secondaries using ftpadmin
+check_ssh_to_secondaries() {
+    local primary="$1"
+    shift
+    local secondaries=("$@")
+    local result=""
+    for sec in "${secondaries[@]}"; do
+        ssh_cmd="ssh -o BatchMode=yes -o ConnectTimeout=5 ftpadmin@$sec 'exit 0'"
+        test=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "$primary" "$ssh_cmd" >/dev/null 2>&1 && echo "OK" || echo "NOK")
+        result+="$sec:$test, "
+    done
+    echo "${result%, }" # Trim last comma
+}
+
+# Inject ssh_to_secondary results
+ssh_external=$(check_ssh_to_secondaries "$PRIMARY_EXTERNAL" "${SECONDARIES_EXTERNAL[@]}")
+ssh_internal=$(check_ssh_to_secondaries "$PRIMARY_INTERNAL" "${SECONDARIES_INTERNAL[@]}")
+
+sed -i "s/^$PRIMARY_EXTERNAL\t.*/&$ssh_external/" "$TMP_DATA"
+sed -i "s/^$PRIMARY_INTERNAL\t.*/&$ssh_internal/" "$TMP_DATA"
+
+# Generate HTML Report
+{
+  echo "<html><body>"
+  echo "<h2>SFTP Server Audit Report</h2>"
+  echo "<table border='1' cellpadding='5' cellspacing='0' style='border-collapse:collapse;'>"
+  echo "<tr style='background-color:#f2f2f2;'>"
+  echo "<th>Server_name</th><th>sshd_config_file</th><th>sftp_config_file</th><th>symlink_nologin</th><th>ftphome_mount</th><th>ftpaccess_script</th><th>ftpadmin_userid</th><th>ssh_to_secondary</th></tr>"
+
+  tail -n +2 "$TMP_DATA" | while IFS=$'\t' read -r s n1 n2 n3 n4 n5 n6 n7; do
+    colorize() {
+      [[ "$1" == OK || "$1" =~ ^[A-Z]{2}:OK ]] && echo "<td style='background-color:#d4edda;'>$1</td>" || echo "<td style='background-color:#f8d7da;'>$1</td>"
+    }
+    echo "<tr>"
+    echo "<td>$s</td>"
+    colorize "$n1"
+    colorize "$n2"
+    colorize "$n3"
+    colorize "$n4"
+    colorize "$n5"
+    colorize "$n6"
+    colorize "$n7"
+    echo "</tr>"
+  done
+  echo "</table></body></html>"
+} > "$HTML_REPORT"
+
+# Send Email with HTML Report
+(
+echo "From: $FROM"
+echo "To: $EMAIL"
+echo "Subject: SFTP Server Audit Report"
+echo "MIME-Version: 1.0"
+echo "Content-Type: text/html"
+echo
+cat "$HTML_REPORT"
+) | /usr/sbin/sendmail -t
