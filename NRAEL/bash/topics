@@ -1,0 +1,15 @@
+Bash Scripting Learning Path
+Module 1 — Script Foundations
+Understanding shebangs, script structure, variables, user input, and running scripts properly. This is where good habits are built.
+Module 2 — Conditionals & Logic
+if/else, case statements, test operators for files, strings, and numbers. The backbone of any real sysadmin script.
+Module 3 — Loops
+for, while, until loops. Iterating over files, users, servers, logs — the bread and butter of automation.
+Module 4 — Functions
+Writing reusable, clean functions. This is what separates a script from production-grade code.
+Module 5 — Working with Files & Text
+grep, awk, sed, cut, sort inside scripts. Essential for log parsing and sysadmin tasks.
+Module 6 — Error Handling & Debugging
+Exit codes, trap, set -e, set -x. Critical for writing scripts that are safe to run in production.
+Module 7 — Real-World Sysadmin Projects
+Disk usage alerting, user creation automation, log rotation, backup scripts, system health reports. This ties everything together.
