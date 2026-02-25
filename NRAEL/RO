@@ -1,0 +1,9 @@
+Recommended Order:
+1. Bash Scripting — You likely know some already, but mastering it first sharpens your automation thinking and makes everything else easier. It's your daily tool.
+2. Python — Once you're comfortable scripting in Bash, Python opens up more powerful automation. It's also essential for Ansible and many DevOps tools.
+3. RHCE / Ansible — With Bash and Python under your belt, Ansible becomes much more intuitive. This is a natural evolution for a Linux admin and gives you your first real taste of Infrastructure as Code.
+4. Docker / Kubernetes — Start with Docker to understand containers, then move to Kubernetes for orchestration. This is the biggest mindset shift from traditional Linux admin work, so having solid scripting skills first helps a lot.
+5. CI/CD — Once you understand containers and automation, CI/CD pipelines (Jenkins, GitHub Actions, GitLab CI) make complete sense. You'll be building and deploying containerized apps through pipelines.
+6. Terraform — With CI/CD and containers in place, Terraform fits naturally as your cloud infrastructure provisioning tool. It pairs perfectly with the next step.
+7. Azure Admin Certification — By this point you'll already be working with cloud concepts through Terraform and CI/CD. Getting the Azure admin cert now will consolidate your cloud knowledge formally and add serious weight to your resume.
+8. Monitoring (ELK Stack, Prometheus, Grafana) — Best learned last because now you have real infrastructure to monitor. You'll understand what to monitor and why, which makes it far more meaningful.
