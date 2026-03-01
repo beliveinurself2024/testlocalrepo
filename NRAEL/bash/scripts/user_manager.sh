@@ -4,6 +4,10 @@
 # Description: Create, delete, and list users
 #              with full validation and logging
 # Usage      : sudo ./user_manager.sh {create|delete|list} [username]
+# sudo ./user_manager.sh create john
+# sudo ./user_manager.sh delete john
+# sudo ./user_manager.sh list
+
 # ============================================
 set -euo pipefail
 
