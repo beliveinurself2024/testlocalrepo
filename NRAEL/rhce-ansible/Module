@@ -1,0 +1,10 @@
+Module Title Topics Covered
+Module 1 Foundations Inventory, ad-hoc commands, YAML, first playbook
+Module 2 Playbooks In Depth Variables, handlers, when, loop, register
+Module 3 Ansible Modules dnf, service, file, copy, template, user, firewalld
+Module 4 Variables & Facts Facts, set_fact, hostvars, group_vars, filters
+Module 5 Roles Role structure, defaults vs vars, Galaxy, site.yml
+Module 6 Jinja2 Templates Loops, conditionals, macros, filters, real configs
+Module 7 Advanced Topics Vault, tags, block/rescue, delegate_to, serial, async
+Module 8 RHCE Exam Projects 5 complete exam-style automation scenarios
+Multi-
