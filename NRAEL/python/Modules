@@ -1,0 +1,16 @@
+Module
+01 Python Foundations Variables, types, f-strings, sys.argv
+Module
+02 Control Flow if/elif, for/while, list comprehensions
+Module
+03 Functions Args, returns, docstrings, logging module
+Module
+04 Data Structures Lists, dicts, tuples, sets
+Module
+05 Files & OS open(), pathlib, shutil, subprocess
+Module
+06 Error Handling try/except, custom exceptions, contextmanager
+Module
+07 Sysadmin Libraries argparse, psutil, paramiko, schedule
+Module
+08 Real-World Projects 5 production-ready scripts
